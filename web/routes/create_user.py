@@ -4,7 +4,7 @@ from fastapi.responses import JSONResponse
 from web.functions import generate_unique_code
 
 @app.get("/user_create")
-async def user_create(tg_id: int, nickname: str, phone_number: int, chats: list[int] = Query(...)):
+async def user_create(tg_id: int, nickname: str, chats: list[int] = Query(...)):
     try:
         user = database["users"].find_one({
             "tg_id": tg_id
@@ -20,7 +20,6 @@ async def user_create(tg_id: int, nickname: str, phone_number: int, chats: list[
         user = database["users"].insert_one({
             "tg_id": tg_id,
             "nickname": nickname,
-            "phone_number": phone_number,
             "auth_code": auth_code,
             "chats": chats
         })

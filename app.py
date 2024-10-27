@@ -114,10 +114,10 @@ async def update_chat_data(message: types.Message):
 
     users = {}
     try:
-        administrators = await bot.get_chat_administrators(chat_id_tg)
-        for admin in administrators:
-            user_id = admin.user.id
-            user_name = f"@{admin.user.username}" if admin.user.username else admin.user.full_name
+        members = await bot.get_chat_administrators(chat_id_tg)
+        for member in members:
+            user_id = member.user.id
+            user_name = f"@{member.user.username}" if member.user.username else member.user.full_name
             users[user_name] = user_id
     except Exception as e:
         print(f"Ошибка при получении данных администратора: {e}")
@@ -129,10 +129,18 @@ async def update_chat_data(message: types.Message):
         "users": users
     }
 
-    # Запись данных в базу данных
-    await chats_collection.insert_one(new_chat_data)
+    existing_chat = await chats_collection.find_one({"chat_id_tg": chat_id_tg})
+    if existing_chat:
+        await chats_collection.update_one(
+            {"chat_id_tg": chat_id_tg},
+            {"$set": new_chat_data}
+        )
+    else:
+        await chats_collection.insert_one(new_chat_data)
+
     print(f"Данные о чате обновлены: {chat_name} (ID: {chat_id_tg})")
     await message.answer("Данные чата успешно обновлены в базе данных.")
+
 
 
 

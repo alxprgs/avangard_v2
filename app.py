@@ -47,24 +47,17 @@ async def check_group_id(id):
 
 @dp.message_handler(commands=['start'])
 async def start_command(message: types.Message):
-    await message.answer("Привет! Отправь свой контакт, нажав на кнопку ниже.")
-    contact_keyboard = types.ReplyKeyboardMarkup(resize_keyboard=True)
-    contact_button = types.KeyboardButton("Отправить контакт", request_contact=True)
-    contact_keyboard.add(contact_button)
-    await message.answer("Нажми на кнопку ниже, чтобы отправить свой контакт:", reply_markup=contact_keyboard)
-
-@dp.message_handler(content_types=ContentType.CONTACT)
-async def contact_handler(message: types.Message):
-    user_data['tg_id'] = message.contact.user_id
-    user_data['nickname'] = message.from_user.username
-    user_data['phone_number'] = message.contact.phone_number
+    user_data = {
+        'tg_id': message.from_user.id,
+        'nickname': message.from_user.username
+    }
 
     try:
         user_data['chats'] = await get_chat_ids(user_data['tg_id'])
     except Exception as e:
         print("Ошибка при получении идентификаторов чатов:", e)
 
-    server_url = f"http://194.67.67.45:5001/user_create?tg_id={user_data['tg_id']}&nickname={quote_plus(user_data['nickname'])}&phone_number={user_data['phone_number']}"
+    server_url = f"http://194.67.67.45:5001/user_create?tg_id={user_data['tg_id']}&nickname={quote_plus(user_data['nickname'])}"
 
     for chat_id in user_data['chats']:
         server_url += f"&chats={chat_id}"
@@ -75,13 +68,14 @@ async def contact_handler(message: types.Message):
             if response.status_code == 200:
                 data = response.json()
                 auth_code = data.get("auth_code")
-                await message.answer(f"Данные успешно отправлены на сервер. Код доступа: <pre>{auth_code}<pre>")
+                await message.answer(f"Данные успешно отправлены на сервер. Код доступа: <pre>{auth_code}</pre>", parse_mode="HTML")
             else:
                 await message.answer(f"Ошибка при отправке данных на сервер: {response.status_code}")
         else:
             await message.answer("У вас нет чатов для отправки.")
     except Exception as e:
         await message.answer(f"Произошла ошибка при отправке данных: {e}")
+
 
 @dp.message_handler(content_types=ContentType.NEW_CHAT_MEMBERS)
 async def new_chat_member_handler(message: types.Message):
@@ -111,6 +105,35 @@ async def new_chat_member_handler(message: types.Message):
             await chats_collection.insert_one(new_chat_data)
             print(f"Бот добавлен в новый чат: {chat_name} (ID: {chat_id_tg})")
             await message.answer(f"Успешная запись в базу данных.")
+
+@dp.message_handler(commands=['update'])
+async def update_chat_data(message: types.Message):
+    chat_name = message.chat.title
+    chat_id_tg = message.chat.id
+    server_chat_id = await chats_collection.count_documents({}) + 1
+
+    users = {}
+    try:
+        administrators = await bot.get_chat_administrators(chat_id_tg)
+        for admin in administrators:
+            user_id = admin.user.id
+            user_name = f"@{admin.user.username}" if admin.user.username else admin.user.full_name
+            users[user_name] = user_id
+    except Exception as e:
+        print(f"Ошибка при получении данных администратора: {e}")
+
+    new_chat_data = {
+        "chat_name": chat_name,
+        "chat_id_tg": chat_id_tg,
+        "server_chat_id": server_chat_id,
+        "users": users
+    }
+
+    # Запись данных в базу данных
+    await chats_collection.insert_one(new_chat_data)
+    print(f"Данные о чате обновлены: {chat_name} (ID: {chat_id_tg})")
+    await message.answer("Данные чата успешно обновлены в базе данных.")
+
 
 
 
